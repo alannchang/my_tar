@@ -13,7 +13,6 @@
 #include <pwd.h>
 #include <grp.h>
 
-
 #define ERR_NO_ARGUMENTS "my_tar: invalid number of arguments\n"
 #define ERR_CANNOT_OPEN "my_tar: can't open it. sorry\n"
 #define ERR_INVALID_OPT "my_tar: invalid number of options\n"
@@ -47,6 +46,7 @@ int write_end_archive(int archive) {
 
     // set file pointer to the end of the tar archive
     lseek(archive, 0, SEEK_END);
+
     // add two blocks of zero bytes to mark the end of the archive
     int two_blocks = BLOCKSIZE * 2;
     char end_archive[two_blocks];
@@ -57,8 +57,10 @@ int write_end_archive(int archive) {
 }
 
 int write_header(int archive, char* arg, int* file_size) {
+
     // initialize stat struct where most of the information for tar header can be found
     struct stat file_stat;
+
     // load file_stat struct with file info using stat() 
     if (stat(arg, &file_stat) == -1) {
         fprintf(stderr, "my_tar: %s: Cannot stat: ", arg);
@@ -136,7 +138,8 @@ int write_content(int archive, char* arg) {
     // open file to be added to tar archive
     int input_fd = open(arg, O_RDONLY);  // O_RDONLY allows for reading only
     if (input_fd != -1) {
-
+        
+        // read and then write file content in block size increments until content runs out
         char buffer[BLOCKSIZE];
         int bytes_read;
         while ((bytes_read = read(input_fd, buffer, sizeof(buffer))) > 0) {
@@ -148,7 +151,7 @@ int write_content(int archive, char* arg) {
     return 0;
 }
 
-int write_files(int archive, int argc, char*argv[]) {
+int write_archive(int archive, int argc, char* argv[]) {
 
     // iterate thru files to be written to tar archive
     for (int i = 3; i < argc; i++) {
@@ -300,7 +303,7 @@ int main(int argc, char *argv[]) {
                     return -1;
                 }
                 // write files to archive
-                if (write_files(new_tar, argc, argv) == -1) return -1;
+                if (write_archive(new_tar, argc, argv) == -1) return -1;
                 // write end-of-archive (two blocks of zero bytes) to archive
                 write_end_archive(new_tar);
 
@@ -317,7 +320,7 @@ int main(int argc, char *argv[]) {
                     // set file pointer to the end of the tar archive
                     lseek(existing_tar, -1024, SEEK_END);
                     // add whatever files are in the arguments
-                    write_files(existing_tar, argc, argv);
+                    write_archive(existing_tar, argc, argv);
                     // write end-of-archive (two blocks of zero bytes) to archive
                     write_end_archive(existing_tar);
                 }

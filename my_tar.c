@@ -56,12 +56,87 @@ int write_end_archive(int archive) {
     return 0;
 }
 
-int write_content(int archive, char* argv) {
+int write_header(int archive, char* arg, int* file_size) {
+    // initialize stat struct where most of the information for tar header can be found
+    struct stat file_stat;
+    // load file_stat struct with file info using stat() 
+    if (stat(arg, &file_stat) == -1) {
+        fprintf(stderr, "my_tar: %s: Cannot stat: ", arg);
+        perror(NULL);
+        return -1;
+    }
+    
+    // initialize tar header struct
+    tar_header header;
+
+    // add file name to header.name
+    int name_len = strlen(arg);
+    strncpy(header.name, arg, name_len);
+
+    // set rest of header.name to zero bytes
+    memset(header.name + name_len, 0, 100 - name_len);
+
+    // add other file info the header struct
+    snprintf(header.mode, sizeof(header.mode), "%07o", file_stat.st_mode & 0777);
+    snprintf(header.uid, sizeof(header.uid), "%07o", file_stat.st_uid);
+    snprintf(header.gid, sizeof(header.gid), "%07o", file_stat.st_gid);
+    snprintf(header.size, sizeof(header.size), "%011llo", (unsigned long long)file_stat.st_size);
+    snprintf(header.mtime, sizeof(header.mtime), "%011llo", (unsigned long long)file_stat.st_mtime);
+    
+    // add "filler" used in checksum calculation
+    memset(header.chksum, ' ', sizeof(header.chksum));
+
+    // I'm assuming we're onlying working with regular files, directories, and symbolic links
+    if (S_ISREG(file_stat.st_mode)) header.typeflag = '0';
+    else if (S_ISLNK(file_stat.st_mode)) header.typeflag = '2';
+    else if (S_ISDIR(file_stat.st_mode)) header.typeflag = '5';
+    
+    // code this later
+    memset(header.linkname, 0, sizeof(header.linkname));
+    
+    // UStar indicator "ustar" then NUL
+    strncpy(header.magic, "ustar", sizeof(header.magic));
+    // two spaces for version
+    memset(header.version, ' ', sizeof(header.version));
+
+    // Get user and group names from uid and gid
+    struct passwd *pwd = getpwuid(file_stat.st_uid);
+    struct group *grp = getgrgid(file_stat.st_gid);
+    if (pwd != NULL) {
+        strncpy(header.uname, pwd->pw_name, sizeof(header.uname));
+    } else {
+        memset(header.uname, 0, sizeof(header.uname));
+    }
+    if (grp != NULL) {
+        strncpy(header.gname, grp->gr_name, sizeof(header.gname));
+    } else {
+        memset(header.gname, 0, sizeof(header.gname));
+    }
+    
+    // zero bytes for the remaining fields
+    memset(header.devmajor, 0, sizeof(header.devmajor));
+    memset(header.devminor, 0, sizeof(header.devminor));
+    memset(header.prefix, 0, sizeof(header.prefix));
+    memset(header.pad, 0, sizeof(header.pad));
+
+    // calculate and then populate checksum field now that all the fields have been entered 
+    calculate_checksum(&header);
+
+    // finally, write header data to tar archive file
+    write(archive, &header, sizeof(header));
+
+    // update file size for use in padding calculation
+    *file_size = (int) file_stat.st_size;
+
+    return 0;
+}
+
+int write_content(int archive, char* arg) {
 
     // open file to be added to tar archive
-    int input_fd = open(argv, O_RDONLY);  // O_RDONLY allows for reading only
+    int input_fd = open(arg, O_RDONLY);  // O_RDONLY allows for reading only
     if (input_fd != -1) {
-        
+
         char buffer[BLOCKSIZE];
         int bytes_read;
         while ((bytes_read = read(input_fd, buffer, sizeof(buffer))) > 0) {
@@ -77,79 +152,18 @@ int write_files(int archive, int argc, char*argv[]) {
 
     // iterate thru files to be written to tar archive
     for (int i = 3; i < argc; i++) {
-        // initialize stat struct where most of the information for tar header can be found
-        struct stat file_stat;
-        // load stat struct with file info using stat() 
-        if (stat(argv[i], &file_stat) == -1) {
-            fprintf(stderr, "my_tar: %s: Cannot stat: ", argv[i]);
-            perror(NULL);
-            return -1;
-        }
         
-        // initialize tar header struct
-        tar_header header;
+        // store file size for later use
+        int file_size;
 
-        // add file name to header.name
-        int name_len = strlen(argv[i]);
-        strncpy(header.name, argv[i], name_len);
-
-        // set rest of header.name to zero bytes
-        memset(header.name + name_len, 0, 100 - name_len);
-
-        // add other file info the header struct
-        snprintf(header.mode, sizeof(header.mode), "%07o", file_stat.st_mode & 0777);
-        snprintf(header.uid, sizeof(header.uid), "%07o", file_stat.st_uid);
-        snprintf(header.gid, sizeof(header.gid), "%07o", file_stat.st_gid);
-        snprintf(header.size, sizeof(header.size), "%011llo", (unsigned long long)file_stat.st_size);
-        snprintf(header.mtime, sizeof(header.mtime), "%011llo", (unsigned long long)file_stat.st_mtime);
-        
-        // add "filler" used in checksum calculation
-        memset(header.chksum, ' ', sizeof(header.chksum));
-
-        // I'm assuming we're onlying working with regular files, directories, and symbolic links
-        if (S_ISREG(file_stat.st_mode)) header.typeflag = '0';
-        else if (S_ISLNK(file_stat.st_mode)) header.typeflag = '2';
-        else if (S_ISDIR(file_stat.st_mode)) header.typeflag = '5';
-        
-        // code this later
-        memset(header.linkname, 0, sizeof(header.linkname));
-        
-        // UStar indicator "ustar" then NUL
-        strncpy(header.magic, "ustar", sizeof(header.magic));
-        // two spaces for version
-        memset(header.version, ' ', sizeof(header.version));
-
-        // Get user and group names from uid and gid
-        struct passwd *pwd = getpwuid(file_stat.st_uid);
-        struct group *grp = getgrgid(file_stat.st_gid);
-        if (pwd != NULL) {
-            strncpy(header.uname, pwd->pw_name, sizeof(header.uname));
-        } else {
-            memset(header.uname, 0, sizeof(header.uname));
-        }
-        if (grp != NULL) {
-            strncpy(header.gname, grp->gr_name, sizeof(header.gname));
-        } else {
-            memset(header.gname, 0, sizeof(header.gname));
-        }
-        
-        // zero bytes for the remaining fields
-        memset(header.devmajor, 0, sizeof(header.devmajor));
-        memset(header.devminor, 0, sizeof(header.devminor));
-        memset(header.prefix, 0, sizeof(header.prefix));
-        memset(header.pad, 0, sizeof(header.pad));
-
-        // calculate and then populate checksum field now that all the fields have been entered 
-        calculate_checksum(&header);
-
-        // finally, write header data to tar archive file
-        write(archive, &header, sizeof(header));
+        // write tar header
+        write_header(archive, argv[i], &file_size);
         
         // add file content after writing header data
         write_content(archive, argv[i]);
 
         // add padding based off file size
-        int padding_size = (BLOCKSIZE - (file_stat.st_size % BLOCKSIZE)) % BLOCKSIZE;
+        int padding_size = (BLOCKSIZE - (file_size % BLOCKSIZE)) % BLOCKSIZE;
         char padding[padding_size];
         memset(padding, 0, padding_size);
         write(archive, padding, padding_size);

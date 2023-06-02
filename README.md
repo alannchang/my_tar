@@ -2,16 +2,16 @@
 ***
 
 ## Task
-TODO - What is the problem? And where is the challenge?
+The assignment was to create a simple program in C that works like the built-in tar command, but with limited functionality.
 
 ## Description
-TODO - How have you solved the problem?
+By doing lots of research and playing around with the built-in tar command, I was able to piece this program together.
 
 ## Installation
-TODO - How to install your project? npm install? make? make re?
+After compiling using the "make" command in the terminal, one can start using the program for doing simple tar functions.
 
 ## Usage
-TODO - How does it work?
+After compiling, one can use the program by typing "./my_tar" followed by options like "-cf" or "-xf" like you would if you were using the built-in tar command.
 ```
 ./my_project argument1 argument2
 ```

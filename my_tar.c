@@ -139,7 +139,7 @@ int write_content(int archive, char* arg) {
     int input_fd = open(arg, O_RDONLY);  // O_RDONLY allows for reading only
     if (input_fd != -1) {
         
-        // read and then write file content in block size increments until content runs out
+        // write file content in block size increments until it runs out of content
         char buffer[BLOCKSIZE];
         int bytes_read;
         while ((bytes_read = read(input_fd, buffer, sizeof(buffer))) > 0) {
@@ -197,6 +197,51 @@ int list_files(int archive) {
         lseek(archive, blocks_to_skip * BLOCKSIZE, SEEK_CUR);
     }
     
+    return 0;
+}
+
+int update_files(int archive, int argc, char* argv[]) {
+
+    // iterate thru files to be updated
+    for (int i = 3; i < argc; i++) {
+
+        // initialize tar header struct
+        tar_header header;
+        // Read each tar header in archive 
+        while(read(archive, &header, sizeof(header)) == BLOCKSIZE) {
+
+            // if first and second character in 'block' is a zero byte, we've most likely reached the end-of-archive
+            if (header.name[0] == '\0') break;
+            // if same file name found
+            if (strcmp(header.name, argv[i]) == 0) {
+                // initialize stat struct
+                struct stat file_stat;
+
+                // load file_stat struct with file info using stat() 
+                if (stat(argv[i], &file_stat) == -1) {
+                    fprintf(stderr, "my_tar: %s: Cannot stat: ", argv[i]);
+                    perror(NULL);
+                    return -1;
+                }
+                char file_mtime[12];
+                snprintf(file_mtime, sizeof(file_mtime), "%011llo", (unsigned long long)file_stat.st_mtime);
+                if (file_mtime > header.mtime) 
+
+
+
+            }
+            
+            // convert file size field (string) from tar header to long integer
+            long file_size = strtol(header.size, NULL, 8);
+
+            // calculate number of blocks to skip
+            // -1 added to ensure if file size is a multiple of BLOCKSIZE, an extra block is not added
+            int blocks_to_skip = (file_size + BLOCKSIZE - 1)/BLOCKSIZE;
+            
+            // move file pointer to end of file content
+            lseek(archive, blocks_to_skip * BLOCKSIZE, SEEK_CUR);
+        }
+    }
     return 0;
 }
 
@@ -317,7 +362,7 @@ int main(int argc, char *argv[]) {
 
                 // -r append to tar archive
                 if (r_opt && f_opt) {
-                    // set file pointer to the end of the tar archive
+                    // set file pointer to right before last two blocks of zero bytes
                     lseek(existing_tar, -1024, SEEK_END);
                     // add whatever files are in the arguments
                     write_archive(existing_tar, argc, argv);
@@ -329,7 +374,7 @@ int main(int argc, char *argv[]) {
                 if (t_opt && f_opt) list_files(existing_tar);
 
                 // -u update entries if modification time is more recent
-                // if (u_opt && f_opt) update_files(existing_tar);
+                if (u_opt && f_opt) update_files(existing_tar, argc, argv);
 
                 // -x extract archive entries to current directory
                 if (x_opt && f_opt) extract_files(existing_tar);

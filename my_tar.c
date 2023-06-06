@@ -1,5 +1,4 @@
 #include "my_tar.h"
-
 #include <stdio.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -12,12 +11,10 @@
 #include <sys/types.h>
 #include <pwd.h>
 #include <grp.h>
-
 #define ERR_NO_ARGUMENTS "my_tar: invalid number of arguments\n"
 #define ERR_CANNOT_OPEN "my_tar: can't open it. sorry\n"
 #define ERR_INVALID_OPT "my_tar: invalid number of options\n"
 #define ERR_INVALID_FILE "my_tar: invalid file to be written\n"
-
 
 int calculate_checksum(tar_header* header) {
     
@@ -151,7 +148,7 @@ int write_content(int archive, char* arg) {
     return 0;
 }
 
-int write_archive(int archive, int argc, char* argv[]) {
+int write_files(int archive, int argc, char* argv[]) {
 
     // iterate thru files to be written to tar archive
     for (int i = 3; i < argc; i++) {
@@ -202,15 +199,17 @@ int list_files(int archive) {
 
 int update_files(int archive, int argc, char* argv[]) {
 
+
+    // array of strings to hold files to be updated/appended to tar archive
+    char* update_list[argc];
+    int j = 3;
+
     // iterate thru files to be updated
     for (int i = 3; i < argc; i++) {
 
         // initialize tar header struct
         tar_header header;
 
-        // array of strings to hold files to be updated/appended to tar archive
-        char* update_list[argc];
-        int j = 3;
 
         // Read each tar header in archive 
         while(read(archive, &header, sizeof(header)) == BLOCKSIZE) {
@@ -236,7 +235,9 @@ int update_files(int archive, int argc, char* argv[]) {
                 // append to tar archive if modification time is more recent
                 if (file_stat.st_mtime > entry_mtime) {
                     update_list[j] = argv[i];
+                    printf("%s is getting added!\n", update_list[j]);
                     j++;
+                    break;
                 }
             }
             
@@ -251,16 +252,18 @@ int update_files(int archive, int argc, char* argv[]) {
             lseek(archive, blocks_to_skip * BLOCKSIZE, SEEK_CUR);
         }
         
-        update_list[j] = NULL;
-
-        // set file pointer to right before last two blocks of zero bytes
-        lseek(archive, -1024, SEEK_END);
-        
-        argc = j;
-        write_archive(archive, argc, update_list);
-        // write end-of-archive (two blocks of zero bytes) to archive
-        write_end_archive(archive);
     }
+
+    update_list[j] = NULL;
+    for (int k = 3; k < j; k++) printf("%s/n", update_list[k]);
+
+    // set file pointer to right before last two blocks of zero bytes
+    lseek(archive, -1024, SEEK_END);
+    
+    argc = j;
+    write_files(archive, argc, update_list);
+    // write end-of-archive (two blocks of zero bytes) to archive
+    write_end_archive(archive);
     return 0;
 }
 
@@ -331,7 +334,6 @@ int main(int argc, char *argv[]) {
             bool t_opt = false; // List archive contents to stdout.
             bool u_opt = false; // Like -r, but new entries are added only if they have a modification date newer than the corresponding entry in the archive. The -f option is required.
             bool x_opt = false; // Extract to disk from the archive. If a file with the same name appears more than once in the archive, each copy will be extracted, with later copies overwriting (replacing) earlier copies.
-
             // iterate thru first argument (options)
             int i = 0;
             while (argv[1][i] != '\0')
@@ -367,7 +369,7 @@ int main(int argc, char *argv[]) {
                     return -1;
                 }
                 // write files to archive
-                if (write_archive(new_tar, argc, argv) == -1) return -1;
+                if (write_files(new_tar, argc, argv) == -1) return -1;
                 // write end-of-archive (two blocks of zero bytes) to archive
                 write_end_archive(new_tar);
 
@@ -378,13 +380,12 @@ int main(int argc, char *argv[]) {
 
                 // open existing tar archive specified in arguments
                 int existing_tar = open(argv[2], O_CREAT | O_RDWR, 0644); // O_RDWR allows for reading and writing
-
                 // -r append to tar archive
                 if (r_opt && f_opt) {
                     // set file pointer to right before last two blocks of zero bytes
                     lseek(existing_tar, -1024, SEEK_END);
                     // add whatever files are in the arguments
-                    write_archive(existing_tar, argc, argv);
+                    write_files(existing_tar, argc, argv);
                     // write end-of-archive (two blocks of zero bytes) to archive
                     write_end_archive(existing_tar);
                 }

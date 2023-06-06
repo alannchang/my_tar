@@ -207,12 +207,18 @@ int update_files(int archive, int argc, char* argv[]) {
 
         // initialize tar header struct
         tar_header header;
+
+        // array of strings to hold files to be updated/appended to tar archive
+        char* update_list[argc];
+        int j = 3;
+
         // Read each tar header in archive 
         while(read(archive, &header, sizeof(header)) == BLOCKSIZE) {
 
             // if first and second character in 'block' is a zero byte, we've most likely reached the end-of-archive
             if (header.name[0] == '\0') break;
-            // if same file name found
+
+            // if file name matches
             if (strcmp(header.name, argv[i]) == 0) {
                 // initialize stat struct
                 struct stat file_stat;
@@ -223,12 +229,15 @@ int update_files(int archive, int argc, char* argv[]) {
                     perror(NULL);
                     return -1;
                 }
-                char file_mtime[12];
-                snprintf(file_mtime, sizeof(file_mtime), "%011llo", (unsigned long long)file_stat.st_mtime);
-                if (file_mtime > header.mtime) 
-
-
-
+                
+                // get modification time of file to be updated and compare with tar entry
+                long entry_mtime = strtol(header.mtime, NULL, 8);
+                
+                // append to tar archive if modification time is more recent
+                if (file_stat.st_mtime > entry_mtime) {
+                    update_list[j] = argv[i];
+                    j++;
+                }
             }
             
             // convert file size field (string) from tar header to long integer
@@ -241,6 +250,16 @@ int update_files(int archive, int argc, char* argv[]) {
             // move file pointer to end of file content
             lseek(archive, blocks_to_skip * BLOCKSIZE, SEEK_CUR);
         }
+        
+        update_list[j] = NULL;
+
+        // set file pointer to right before last two blocks of zero bytes
+        lseek(archive, -1024, SEEK_END);
+        
+        argc = j;
+        write_archive(archive, argc, update_list);
+        // write end-of-archive (two blocks of zero bytes) to archive
+        write_end_archive(archive);
     }
     return 0;
 }

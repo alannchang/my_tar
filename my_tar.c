@@ -209,7 +209,10 @@ int update_files(int archive, int argc, char* argv[]) {
 
         // initialize tar header struct
         tar_header header;
-
+        
+        // variables to keep track of modification times
+        long file_mtime;
+        long most_recent_mtime;
 
         // Read each tar header in archive 
         while(read(archive, &header, sizeof(header)) == BLOCKSIZE) {
@@ -229,21 +232,15 @@ int update_files(int archive, int argc, char* argv[]) {
                     perror(NULL);
                     return -1;
                 }
+
+                // store modification time for file to be updated
+                file_mtime = file_stat.st_mtime;                
                 
-                // get modification time of file to be updated and compare with tar entry
+                // convert modification time from tar header from octal string to long
                 long entry_mtime = strtol(header.mtime, NULL, 8);
-                
-                // append to tar archive if modification time is more recent
-                if (file_stat.st_mtime > entry_mtime) {
-                    lseek(archive, -376, SEEK_CUR);
-                    snprintf(header.mtime, sizeof(header.mtime), "%011llo", (unsigned long long)file_stat.st_mtime);
-                    write(archive, header.mtime, sizeof(header.mtime));
-                    lseek(archive, 376, SEEK_CUR);
-                    update_list[j] = argv[i];
-                    printf("%s is getting added!\n", update_list[j]);
-                    j++;
-                    break;
-                }
+
+                // store the most recent modification time for every file with the same name
+                if (entry_mtime > most_recent_mtime) most_recent_mtime = entry_mtime;   
             }
             
             // convert file size field (string) from tar header to long integer
@@ -255,6 +252,12 @@ int update_files(int archive, int argc, char* argv[]) {
             
             // move file descriptor to end of file content
             lseek(archive, blocks_to_skip * BLOCKSIZE, SEEK_CUR);
+        }
+
+        if (file_mtime > most_recent_mtime) {
+            update_list[j] = argv[i];
+            printf("%s is getting added!\n", update_list[j]);
+            j++;
         }
         
     }

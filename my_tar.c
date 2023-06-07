@@ -219,6 +219,7 @@ int update_files(int archive, int argc, char* argv[]) {
 
             // if file name matches
             if (strcmp(header.name, argv[i]) == 0) {
+                printf("There's a match!");
                 // initialize stat struct
                 struct stat file_stat;
 
@@ -234,6 +235,7 @@ int update_files(int archive, int argc, char* argv[]) {
                 
                 // append to tar archive if modification time is more recent
                 if (file_stat.st_mtime > entry_mtime) {
+                    
                     update_list[j] = argv[i];
                     printf("%s is getting added!\n", update_list[j]);
                     j++;
@@ -255,7 +257,7 @@ int update_files(int archive, int argc, char* argv[]) {
     }
 
     update_list[j] = NULL;
-    for (int k = 3; k < j; k++) printf("%s/n", update_list[k]);
+    for (int k = 3; k < j; k++) printf("%s\n", update_list[k]);
 
     // set file pointer to right before last two blocks of zero bytes
     lseek(archive, -1024, SEEK_END);

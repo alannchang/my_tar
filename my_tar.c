@@ -41,7 +41,7 @@ int calculate_checksum(tar_header* header) {
 
 int write_end_archive(int archive) {
 
-    // set file pointer to the end of the tar archive
+    // set file descriptor to the end of the tar archive
     lseek(archive, 0, SEEK_END);
 
     // add two blocks of zero bytes to mark the end of the archive
@@ -190,7 +190,7 @@ int list_files(int archive) {
         // -1 added to ensure if file size is a multiple of BLOCKSIZE, an extra block is not added
         int blocks_to_skip = (file_size + BLOCKSIZE - 1)/BLOCKSIZE;
         
-        // move file pointer to end of file content
+        // move file descriptor to end of file content
         lseek(archive, blocks_to_skip * BLOCKSIZE, SEEK_CUR);
     }
     
@@ -235,7 +235,7 @@ int update_files(int archive, int argc, char* argv[]) {
                 
                 // append to tar archive if modification time is more recent
                 if (file_stat.st_mtime > entry_mtime) {
-                    
+
                     update_list[j] = argv[i];
                     printf("%s is getting added!\n", update_list[j]);
                     j++;
@@ -250,7 +250,7 @@ int update_files(int archive, int argc, char* argv[]) {
             // -1 added to ensure if file size is a multiple of BLOCKSIZE, an extra block is not added
             int blocks_to_skip = (file_size + BLOCKSIZE - 1)/BLOCKSIZE;
             
-            // move file pointer to end of file content
+            // move file descriptor to end of file content
             lseek(archive, blocks_to_skip * BLOCKSIZE, SEEK_CUR);
         }
         
@@ -259,7 +259,7 @@ int update_files(int archive, int argc, char* argv[]) {
     update_list[j] = NULL;
     for (int k = 3; k < j; k++) printf("%s\n", update_list[k]);
 
-    // set file pointer to right before last two blocks of zero bytes
+    // set file descriptor to right before last two blocks of zero bytes
     lseek(archive, -1024, SEEK_END);
     
     argc = j;
@@ -304,7 +304,7 @@ int extract_files(int archive) {
             close(dest_fd);
             free(buffer);
 
-            // move file pointer to next header
+            // move file descriptor to next header
             lseek(archive, padding, SEEK_CUR);
         } 
 
@@ -384,7 +384,7 @@ int main(int argc, char *argv[]) {
                 int existing_tar = open(argv[2], O_CREAT | O_RDWR, 0644); // O_RDWR allows for reading and writing
                 // -r append to tar archive
                 if (r_opt && f_opt) {
-                    // set file pointer to right before last two blocks of zero bytes
+                    // set file descriptor to right before last two blocks of zero bytes
                     lseek(existing_tar, -1024, SEEK_END);
                     // add whatever files are in the arguments
                     write_files(existing_tar, argc, argv);

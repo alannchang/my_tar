@@ -235,7 +235,10 @@ int update_files(int archive, int argc, char* argv[]) {
                 
                 // append to tar archive if modification time is more recent
                 if (file_stat.st_mtime > entry_mtime) {
-
+                    lseek(archive, -376, SEEK_CUR);
+                    snprintf(header.mtime, sizeof(header.mtime), "%011llo", (unsigned long long)file_stat.st_mtime);
+                    write(archive, header.mtime, sizeof(header.mtime));
+                    lseek(archive, 376, SEEK_CUR);
                     update_list[j] = argv[i];
                     printf("%s is getting added!\n", update_list[j]);
                     j++;

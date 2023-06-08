@@ -15,7 +15,6 @@
 #define ERR_CANNOT_OPEN "my_tar: can't open it. sorry\n"
 #define ERR_INVALID_OPT "my_tar: invalid number of options\n"
 #define ERR_INVALID_FILE "my_tar: invalid file to be written\n"
-
 int calculate_checksum(tar_header* header) {
     
     int sum = 0;
@@ -221,7 +220,7 @@ int update_files(int archive, int argc, char* argv[]) {
 
             // if file name matches
             if (strcmp(header.name, argv[i]) == 0) {
-                printf("There's a match!");
+                printf("There's a match!\n");
                 // initialize stat struct
                 struct stat file_stat;
 
@@ -266,7 +265,7 @@ int update_files(int archive, int argc, char* argv[]) {
     printf("j = %d\n", j);
 
     // set file descriptor to right before last two blocks of zero bytes
-    lseek(archive, -1024, SEEK_END);
+    if (lseek(archive, -1024, SEEK_END) == -1) perror("lseek failed");
     
     write_files(archive, j, update_list);
     // write end-of-archive (two blocks of zero bytes) to archive
@@ -387,7 +386,6 @@ int main(int argc, char *argv[]) {
 
                 // open existing tar archive specified in arguments
                 int existing_tar = open(argv[2], O_CREAT | O_RDWR, 0644); // O_RDWR allows for reading and writing
-
                 // -r append to tar archive
                 if (r_opt && f_opt) {
                     // set file descriptor to right before last two blocks of zero bytes

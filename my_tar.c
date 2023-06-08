@@ -199,9 +199,8 @@ int list_files(int archive) {
 
 int update_files(int archive, int argc, char* argv[]) {
 
-
     // array of strings to hold files to be updated/appended to tar archive
-    char* update_list[argc];
+    char* update_list[argc + 1];
     int j = 3;
 
     // iterate thru files to be updated
@@ -264,12 +263,12 @@ int update_files(int archive, int argc, char* argv[]) {
 
     update_list[j] = NULL;
     for (int k = 3; k < j; k++) printf("%s\n", update_list[k]);
+    printf("j = %d\n", j);
 
     // set file descriptor to right before last two blocks of zero bytes
     lseek(archive, -1024, SEEK_END);
     
-    argc = j;
-    write_files(archive, argc, update_list);
+    write_files(archive, j, update_list);
     // write end-of-archive (two blocks of zero bytes) to archive
     write_end_archive(archive);
     return 0;
@@ -388,6 +387,7 @@ int main(int argc, char *argv[]) {
 
                 // open existing tar archive specified in arguments
                 int existing_tar = open(argv[2], O_CREAT | O_RDWR, 0644); // O_RDWR allows for reading and writing
+
                 // -r append to tar archive
                 if (r_opt && f_opt) {
                     // set file descriptor to right before last two blocks of zero bytes

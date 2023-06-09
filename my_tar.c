@@ -148,12 +148,11 @@ int write_content(int archive, char* arg) {
     return 0;
 }
 
-int write_files(int archive, int argc, char* argv[]) {
-
-    lseek(archive, 0, SEEK_CUR);
+int write_files(int archive, char* argv[]) {
 
     // iterate thru files to be written to tar archive
-    for (int i = 3; i < argc; i++) {
+    int i = 3;
+    while (argv[i] != NULL) {
         
         // store file size for later use
         int file_size;
@@ -179,6 +178,8 @@ int write_files(int archive, int argc, char* argv[]) {
             perror("write padding failed");
             return -1;
         }
+        
+        i++;
     }
 
     return 0;
@@ -209,10 +210,10 @@ int list_files(int archive) {
     return 0;
 }
 
-int update_files(int archive, int argc, char* argv[]) {
+char** update_files(int archive, int argc, char* argv[]) {
 
     // array of strings to hold files to be updated/appended to tar archive
-    char* update_list[argc + 1];
+    char** update_list = malloc((argc + 1) * (sizeof(char*)));
     int j = 3;
 
     // iterate thru files to be updated
@@ -241,7 +242,6 @@ int update_files(int archive, int argc, char* argv[]) {
                 if (stat(argv[i], &file_stat) == -1) {
                     fprintf(stderr, "my_tar: %s: Cannot stat: ", argv[i]);
                     perror(NULL);
-                    return -1;
                 }
 
                 // store modification time for file to be updated
@@ -266,25 +266,20 @@ int update_files(int archive, int argc, char* argv[]) {
         }
 
         if (file_mtime > most_recent_mtime) {
-            update_list[j] = argv[i];
+            update_list[j] = malloc(strlen(argv[i] + 1) * sizeof(char));
+            strcpy(update_list[j], argv[i]);
             printf("%s is getting added!\n", update_list[j]);
             j++;
         }
         
     }
-
+    
+    update_list[j] = malloc(sizeof(NULL));
     update_list[j] = NULL;
     for (int k = 3; k < j; k++) printf("%s\n", update_list[k]);
     printf("j = %d\n", j);
 
-    // set file descriptor to right before last two blocks of zero bytes
-    if (lseek(archive, -1024, SEEK_END) == -1) perror("lseek failed");
-    
-    write_files(archive, j, update_list);
-    // write end-of-archive (two blocks of zero bytes) to archive
-    write_end_archive(archive);
-
-    return 0;
+    return update_list;
 }
 
 
@@ -389,7 +384,7 @@ int main(int argc, char *argv[]) {
                     return -1;
                 }
                 // write files to archive
-                if (write_files(new_tar, argc, argv) == -1) return -1;
+                if (write_files(new_tar, argv) == -1) return -1;
                 // write end-of-archive (two blocks of zero bytes) to archive
                 write_end_archive(new_tar);
 
@@ -410,7 +405,7 @@ int main(int argc, char *argv[]) {
                     }
                     
                     // add whatever files are in the arguments
-                    if (write_files(existing_tar, argc, argv) == -1) {
+                    if (write_files(existing_tar, argv) == -1) {
                         perror("write files failed");
                         return -1;
                     }
@@ -427,8 +422,25 @@ int main(int argc, char *argv[]) {
 
                 // -u update entries if modification time is more recent
                 if (u_opt && f_opt) {
-                    if (update_files(existing_tar, argc, argv) == -1) {
-                        perror("update files failed");
+
+                    // create new array of strings for files to be added/updated
+                    char** new_argv = update_files(existing_tar, argc, argv);
+
+                    // set file descriptor to right before last two blocks of zero bytes
+                    if (lseek(existing_tar, -1024, SEEK_END) == -1) {
+                        perror("lseek failed");
+                        return -1;
+                    }
+                    
+                    // add whatever files are in the arguments
+                    if (write_files(existing_tar, new_argv) == -1) {
+                        perror("write files failed");
+                        return -1;
+                    }
+
+                    // write end-of-archive (two blocks of zero bytes) to archive
+                    if (write_end_archive(existing_tar) == -1) {
+                        perror("write end archive failed");
                         return -1;
                     }
                 }

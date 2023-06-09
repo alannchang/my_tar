@@ -15,6 +15,7 @@
 #define ERR_CANNOT_OPEN "my_tar: can't open it. sorry\n"
 #define ERR_INVALID_OPT "my_tar: invalid number of options\n"
 #define ERR_INVALID_FILE "my_tar: invalid file to be written\n"
+
 int calculate_checksum(tar_header* header) {
     
     int sum = 0;
@@ -149,6 +150,8 @@ int write_content(int archive, char* arg) {
 
 int write_files(int archive, int argc, char* argv[]) {
 
+    lseek(archive, 0, SEEK_CUR);
+
     // iterate thru files to be written to tar archive
     for (int i = 3; i < argc; i++) {
         
@@ -156,16 +159,26 @@ int write_files(int archive, int argc, char* argv[]) {
         int file_size;
 
         // write tar header
-        write_header(archive, argv[i], &file_size);
+        if (write_header(archive, argv[i], &file_size) == -1) {
+            perror("write header failed");
+            return -1;
+        }
         
         // add file content after writing header data
-        write_content(archive, argv[i]);
+        if (write_content(archive, argv[i]) == -1) {
+            perror("write content failed");
+            return -1;
+        }
 
         // add padding based off file size
         int padding_size = (BLOCKSIZE - (file_size % BLOCKSIZE)) % BLOCKSIZE;
         char padding[padding_size];
         memset(padding, 0, padding_size);
-        write(archive, padding, padding_size);
+        
+        if (write(archive, padding, padding_size) == -1) {
+            perror("write padding failed");
+            return -1;
+        }
     }
 
     return 0;
@@ -270,6 +283,7 @@ int update_files(int archive, int argc, char* argv[]) {
     write_files(archive, j, update_list);
     // write end-of-archive (two blocks of zero bytes) to archive
     write_end_archive(archive);
+
     return 0;
 }
 
@@ -388,19 +402,36 @@ int main(int argc, char *argv[]) {
                 int existing_tar = open(argv[2], O_CREAT | O_RDWR, 0644); // O_RDWR allows for reading and writing
                 // -r append to tar archive
                 if (r_opt && f_opt) {
+
                     // set file descriptor to right before last two blocks of zero bytes
-                    lseek(existing_tar, -1024, SEEK_END);
+                    if (lseek(existing_tar, -1024, SEEK_END) == -1) {
+                        perror("lseek failed");
+                        return -1;
+                    }
+                    
                     // add whatever files are in the arguments
-                    write_files(existing_tar, argc, argv);
+                    if (write_files(existing_tar, argc, argv) == -1) {
+                        perror("write files failed");
+                        return -1;
+                    }
+
                     // write end-of-archive (two blocks of zero bytes) to archive
-                    write_end_archive(existing_tar);
+                    if (write_end_archive(existing_tar) == -1) {
+                        perror("write end archive failed");
+                        return -1;
+                    }
                 }
                 
                 // -t list archive contents to stdout
                 if (t_opt && f_opt) list_files(existing_tar);
 
                 // -u update entries if modification time is more recent
-                if (u_opt && f_opt) update_files(existing_tar, argc, argv);
+                if (u_opt && f_opt) {
+                    if (update_files(existing_tar, argc, argv) == -1) {
+                        perror("update files failed");
+                        return -1;
+                    }
+                }
 
                 // -x extract archive entries to current directory
                 if (x_opt && f_opt) extract_files(existing_tar);

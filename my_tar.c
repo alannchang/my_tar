@@ -15,6 +15,8 @@
 #define ERR_CANNOT_OPEN "my_tar: can't open it. sorry\n"
 #define ERR_INVALID_OPT "my_tar: invalid number of options\n"
 #define ERR_INVALID_FILE "my_tar: invalid file to be written\n"
+
+
 int calculate_checksum(tar_header* header) {
     
     int sum = 0;
@@ -209,7 +211,31 @@ int list_files(int archive) {
     return 0;
 }
 
-char** update_files(int archive, int argc, char* argv[]) {
+int move_fd(int archive){
+    
+    // initialize tar header struct
+    tar_header header;
+    // Read each tar header in archive 
+    while(read(archive, &header, sizeof(header)) == BLOCKSIZE) {
+
+        // if first and second character in 'block' is a zero byte, we've most likely reached the end-of-archive
+        if (header.name[0] == '\0') break;
+
+        // convert file size field (string) from tar header to long integer
+        long file_size = strtol(header.size, NULL, 8);
+
+        // calculate number of blocks to skip
+        // -1 added to ensure if file size is a multiple of BLOCKSIZE, an extra block is not added
+        int blocks_to_skip = (file_size + BLOCKSIZE - 1)/BLOCKSIZE;
+        
+        // move file descriptor to end of file content
+        lseek(archive, blocks_to_skip * BLOCKSIZE, SEEK_CUR);
+    }
+    
+    return 0;
+}
+
+char** update_args(int archive, int argc, char* argv[]) {
 
     // array of strings to hold files to be updated/appended to tar archive
     char** update_list = malloc((argc + 1) * (sizeof(char*)));
@@ -264,20 +290,19 @@ char** update_files(int archive, int argc, char* argv[]) {
             // move file descriptor to end of file content + padding 
             lseek(archive, blocks_to_skip * BLOCKSIZE, SEEK_CUR);
         }
-
+        
+        // if new file has more recent modified time, add to string array
         if (file_mtime > most_recent_mtime) {
             update_list[j] = malloc(strlen(argv[i] + 1) * sizeof(char));
             strcpy(update_list[j], argv[i]);
-            printf("%s is getting added!\n", update_list[j]);
             j++;
         }
         
     }
     
+    // null terminate string array
     update_list[j] = malloc(sizeof(NULL));
     update_list[j] = NULL;
-    for (int k = 3; k < j; k++) printf("%s\n", update_list[k]);
-    printf("j = %d\n", j);
 
     return update_list;
 }
@@ -398,8 +423,11 @@ int main(int argc, char *argv[]) {
                 // -r append to tar archive
                 if (r_opt && f_opt) {
 
+                    // move file descriptor to end of file
+                    move_fd(existing_tar);
+
                     // set file descriptor to right before last two blocks of zero bytes
-                    if (lseek(existing_tar, -1024, SEEK_END) == -1) {
+                    if (lseek(existing_tar, -512, SEEK_CUR) == -1) {
                         perror("lseek failed");
                         return -1;
                     }
@@ -424,7 +452,7 @@ int main(int argc, char *argv[]) {
                 if (u_opt && f_opt) {
 
                     // create new array of strings for files to be added/updated
-                    char** new_argv = update_files(existing_tar, argc, argv);
+                    char** new_argv = update_args(existing_tar, argc, argv);
 
                     // set file descriptor to right before last two blocks of zero bytes
                     if (lseek(existing_tar, -512, SEEK_CUR) == -1) {

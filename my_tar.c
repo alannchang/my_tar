@@ -1,4 +1,5 @@
 #include "my_tar.h"
+
 #include <stdio.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -11,6 +12,7 @@
 #include <sys/types.h>
 #include <pwd.h>
 #include <grp.h>
+
 #define ERR_NO_ARGUMENTS "my_tar: invalid number of arguments\n"
 #define ERR_CANNOT_OPEN "my_tar: can't open it. sorry\n"
 #define ERR_INVALID_OPT "my_tar: invalid number of options\n"
@@ -145,7 +147,6 @@ int write_content(int archive, char* arg) {
         }
         close(input_fd);
     }
-
     return 0;
 }
 
@@ -178,11 +179,9 @@ int write_files(int archive, char* argv[]) {
         if (write(archive, padding, padding_size) == -1) {
             perror("write padding failed");
             return -1;
-        }
-        
+        }   
         i++;
     }
-
     return 0;
 }
 
@@ -207,7 +206,6 @@ int list_files(int archive) {
         // move file descriptor to end of file content
         lseek(archive, blocks_to_skip * BLOCKSIZE, SEEK_CUR);
     }
-    
     return 0;
 }
 
@@ -231,7 +229,6 @@ int move_fd(int archive){
         // move file descriptor to end of file content
         lseek(archive, blocks_to_skip * BLOCKSIZE, SEEK_CUR);
     }
-    
     return 0;
 }
 
@@ -297,9 +294,7 @@ char** update_args(int archive, int argc, char* argv[]) {
             strcpy(update_list[j], argv[i]);
             j++;
         }
-        
     }
-    
     // null terminate string array
     update_list[j] = malloc(sizeof(NULL));
     update_list[j] = NULL;
@@ -345,13 +340,10 @@ int extract_files(int archive) {
             // move file descriptor to next header
             lseek(archive, padding, SEEK_CUR);
         } 
-
         // if symbolic link or directory
         else if (header.typeflag == '2') symlink(header.linkname, header.name);
         else if (header.typeflag == '5') mkdir(header.name, 0755);
-        
     }
-
     return 0;
 }
 

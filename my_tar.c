@@ -247,9 +247,10 @@ char** update_args(int archive, int argc, char* argv[]) {
         // initialize tar header struct
         tar_header header;
         
-        // variables to keep track of modification times
-        long file_mtime;
-        long most_recent_mtime;
+        // variables to keep track of modification times, name matches
+        long file_mtime = 0;
+        long most_recent_mtime = 0;
+        bool name_match = false;
 
         // Read each tar header in archive 
         while(read(archive, &header, sizeof(header)) == BLOCKSIZE) {
@@ -259,7 +260,7 @@ char** update_args(int archive, int argc, char* argv[]) {
 
             // if file name matches
             if (strcmp(header.name, argv[i]) == 0) {
-                printf("There's a match!\n");
+                name_match = true;
                 // initialize stat struct
                 struct stat file_stat;
 
@@ -281,7 +282,6 @@ char** update_args(int archive, int argc, char* argv[]) {
             
             // convert file size field (string) from tar header to long integer
             long file_size = strtol(header.size, NULL, 8);
-            printf("%s\n", header.size);
 
             // calculate number of blocks to skip
             // -1 added to ensure if file size is a multiple of BLOCKSIZE, an extra block is not added
@@ -291,8 +291,8 @@ char** update_args(int archive, int argc, char* argv[]) {
             lseek(archive, blocks_to_skip * BLOCKSIZE, SEEK_CUR);
         }
         
-        // if new file has more recent modified time, add to string array
-        if (file_mtime > most_recent_mtime) {
+        // if new file has more recent modified time or no name matches, add to string array
+        if (file_mtime > most_recent_mtime || name_match == false) {
             update_list[j] = malloc(strlen(argv[i] + 1) * sizeof(char));
             strcpy(update_list[j], argv[i]);
             j++;

@@ -15,7 +15,6 @@
 #define ERR_CANNOT_OPEN "my_tar: can't open it. sorry\n"
 #define ERR_INVALID_OPT "my_tar: invalid number of options\n"
 #define ERR_INVALID_FILE "my_tar: invalid file to be written\n"
-
 int calculate_checksum(tar_header* header) {
     
     int sum = 0;
@@ -229,7 +228,7 @@ char** update_files(int archive, int argc, char* argv[]) {
         // Read each tar header in archive 
         while(read(archive, &header, sizeof(header)) == BLOCKSIZE) {
 
-            // if first and second character in 'block' is a zero byte, we've most likely reached the end-of-archive
+            // if first character in 'block' is a zero byte, we've most likely reached the end-of-archive
             if (header.name[0] == '\0') break;
 
             // if file name matches
@@ -256,12 +255,13 @@ char** update_files(int archive, int argc, char* argv[]) {
             
             // convert file size field (string) from tar header to long integer
             long file_size = strtol(header.size, NULL, 8);
+            printf("%s\n", header.size);
 
             // calculate number of blocks to skip
             // -1 added to ensure if file size is a multiple of BLOCKSIZE, an extra block is not added
             int blocks_to_skip = (file_size + BLOCKSIZE - 1)/BLOCKSIZE;
             
-            // move file descriptor to end of file content
+            // move file descriptor to end of file content + padding 
             lseek(archive, blocks_to_skip * BLOCKSIZE, SEEK_CUR);
         }
 
@@ -427,7 +427,7 @@ int main(int argc, char *argv[]) {
                     char** new_argv = update_files(existing_tar, argc, argv);
 
                     // set file descriptor to right before last two blocks of zero bytes
-                    if (lseek(existing_tar, -1024, SEEK_END) == -1) {
+                    if (lseek(existing_tar, -512, SEEK_CUR) == -1) {
                         perror("lseek failed");
                         return -1;
                     }

@@ -13,11 +13,11 @@ After compiling using the "make" command in the terminal, one can start using th
 ## Usage
 After compiling, one can use the program by typing "./my_tar" followed by options like "-cf" or "-xf" like you would if you were using the built-in tar command.
 ```
-./my_project argument1 argument2
+./my_tar -cf newtar.tar file1.txt file2.txt
 ```
 
 ### The Core Team
-
+Alan Chang
 
 <span><i>Made at <a href='https://qwasar.io'>Qwasar SV -- Software Engineering School</a></i></span>
 <span><img alt='Qwasar SV -- Software Engineering School's Logo' src='https://storage.googleapis.com/qwasar-public/qwasar-logo_50x50.png' width='20px'></span>
